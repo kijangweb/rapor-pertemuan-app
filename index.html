@@ -357,7 +357,7 @@
         throw new Error("jsPDF not loaded");
       }
       const { jsPDF } = window.jspdf;
-      const tmp = new jsPDF();
+      const tmp = new jspdf.jsPDF(); // Pastikan pemanggilan constructor benar
       if (typeof tmp.autoTable !== "function") {
         showLibError("Gagal memuat plugin jsPDF-AutoTable. Coba reload halaman.");
         throw new Error("autotable not loaded");
@@ -846,13 +846,15 @@
       btn.disabled = true;
       btn.textContent = "Membuat PDF...";
 
-      // Hanya buka window/tab kosong jika bukan mobile atau jika mobile tapi share API tidak didukung/gagal
-      // Ini dilakukan di akhir jika memang perlu (untuk desktop)
+      // window.open() tidak akan dipanggil di awal lagi.
+      // Hanya akan dipanggil jika di desktop, atau jika mobile tapi share API tidak didukung/gagal
       let whatsappWindow = null; 
       const pdfFileName = `rapor_pertemuan_${pertemuan || 'N'}_${tanggal || 'tanggal'}.pdf`;
       const summaryText = `Rapor pertemuan ${pertemuan || "-"} (${tanggal || "-"})\n\nPelajaran: ${pelajaran || "-"}\nAktivitas: ${aktivitas || "-"}\nHasil: ${hasil || "-"}`; // Pesan utama WA
 
       try {
+        // --- Bagian Utama Proses Generate ---
+
         // 1. Kirim data ke Google Apps Script (tetap lakukan ini di awal untuk logging)
         console.log("Mengirim data rapor ke Google Apps Script:", reportData);
         if (GOOGLE_APPS_SCRIPT_WEB_APP_URL === "YOUR_WEB_APP_URL_HERE") {
@@ -913,20 +915,18 @@
                 // KONDISI MOBILE IDEAL: WEB SHARE API DIDUKUNG & BISA BERBAGI FILE PDF
                 try {
                     console.log("Mobile: Kondisi Web Share API terpenuhi. Meluncurkan Web Share API.");
+                    // Langsung panggil navigator.share. Tidak ada window.open atau unduhan otomatis.
                     await navigator.share({
                         files: [pdfFile],
                         title: "Rapor Pertemuan",
                         text: summaryText
                     });
-                    console.log("Mobile: Web Share API berhasil dijalankan. Tidak ada unduhan atau pembukaan WhatsApp.");
+                    console.log("Mobile: Web Share API berhasil dijalankan. Tidak ada unduhan atau pembukaan WhatsApp. Proses selesai.");
                     shareInstructionsEl.innerHTML = `Lembar berbagi telah muncul di perangkat Anda. Silakan pilih aplikasi WhatsApp (atau aplikasi lain) untuk membagikan rapor PDF.`;
-                    // Jika ada window.open kosong yang terbuka dari klik, tutup (meskipun idealnya tidak dibuka di mobile)
-                    if (whatsappWindow && !whatsappWindow.closed) { whatsappWindow.close(); } 
-                    return; // SANGAT PENTING: Hentikan eksekusi di sini untuk mobile jika berhasil share
+                    return; // SANGAT PENTING: Hentikan eksekusi di sini jika berhasil share
                 } catch (shareError) {
                     // Mobile: Web Share API gagal (misal: dibatalkan pengguna, atau error lain)
                     console.warn("Mobile: Web Share API gagal atau dibatalkan oleh pengguna:", shareError); 
-                    if (whatsappWindow && !whatsappWindow.closed) { whatsappWindow.close(); } // Tutup jendela kosong
                     alert("Berbagi PDF langsung dibatalkan atau tidak tersedia di perangkat ini. Silakan coba cara lain atau gunakan desktop.");
                     shareInstructionsEl.innerHTML = `Berbagi PDF langsung dibatalkan atau tidak tersedia di perangkat ini. Silakan coba cara lain atau gunakan desktop.`;
                     return; // SANGAT PENTING: Hentikan eksekusi di sini untuk mobile jika gagal/dibatalkan share
@@ -934,7 +934,6 @@
             } else {
                 // Mobile: Web Share API TIDAK DIDUKUNG untuk file PDF
                 console.log("Mobile: Web Share API untuk file PDF TIDAK didukung. Memberi info dan menghentikan proses.");
-                if (whatsappWindow && !whatsappWindow.closed) { whatsappWindow.close(); } // Tutup jendela kosong
                 alert("Browser di perangkat seluler ini tidak mendukung berbagi PDF langsung. Anda bisa menggunakan versi desktop untuk mengunduh dan melampirkan PDF secara manual.");
                 shareInstructionsEl.innerHTML = `Browser di perangkat ini tidak mendukung berbagi PDF langsung. Anda bisa menggunakan desktop untuk mengunduh dan melampirkan PDF.`;
                 return; // SANGAT PENTING: Hentikan eksekusi di sini untuk mobile jika tidak didukung
@@ -942,8 +941,8 @@
         } else {
             // --- JALUR KHUSUS UNTUK PERANGKAT DESKTOP ---
             console.log("Perangkat Desktop Terdeteksi.");
-            // Buka window kosong untuk WhatsApp (strategi anti-popup blocker)
-            whatsappWindow = window.open("", "_blank"); // Dibuka di sini untuk desktop
+            // Untuk desktop, buka window kosong dahulu
+            whatsappWindow = window.open("", "_blank"); 
             if (whatsappWindow) {
               whatsappWindow.document.write("Mohon tunggu, mempersiapkan PDF dan membuka WhatsApp...");
               whatsappWindow.document.title = "Membuka WhatsApp...";
@@ -959,6 +958,7 @@
             const waTextForUrl = summaryText + '\n\nSilakan lampirkan PDF rapor yang baru diunduh.'; 
             const url = waUrlForDevice(waNumber, waTextForUrl);
 
+            // Alihkan window kosong ke URL WhatsApp
             if (whatsappWindow) {
               if (!whatsappWindow.closed) {
                 whatsappWindow.location.href = url;
@@ -972,6 +972,7 @@
 
       } catch (err) {
         console.error("Terjadi kesalahan fatal saat generate/kirim:", err);
+        // Pastikan window kosong ditutup jika ada error
         if (whatsappWindow && !whatsappWindow.closed) {
           try { whatsappWindow.close(); } catch (e) {}
         }
