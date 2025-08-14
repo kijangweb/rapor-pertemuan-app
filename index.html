@@ -340,11 +340,11 @@
   <script>
     // URL Web App Google Apps Script Anda. GANTI DENGAN URL ASLI!
     // Contoh: https://script.google.com/macros/s/AKfycbz_XXXXXXXXXXXX_YOUR_ID/exec
-    const GOOGLE_APPS_SCRIPT_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwFlmXqTa4VzBGHtxqSihwES111-DvWE7nYf-RmqMdEL1eFBjuMSYxF1vdFNvfnupowNA/exec"; 
+    const GOOGLE_APPS_SCRIPT_WEB_APP_URL = "YOUR_WEB_APP_URL_HERE"; 
 
     // Elemen instruksi berbagi
     const shareInstructionsEl = document.getElementById("shareInstructions");
-    const initialInstructionsEl = document.getElementById("initialInstructions");
+    const initialInstructionsEl = document.getElementById("initialInstructions"); // Ini adalah instruksi di bagian atas halaman
 
     // ======= Helper: tampilkan error lib kalau CDN gagal =======
     function showLibError(msg) {
@@ -354,16 +354,19 @@
     }
 
     async function ensureLibraries() {
+      // Pastikan jsPDF tersedia
       if (!window.jspdf || !window.jspdf.jsPDF) {
         showLibError("Gagal memuat jsPDF dari CDN. Pastikan koneksi internet aktif atau coba reload halaman.");
         throw new Error("jsPDF not loaded");
       }
+      // Pastikan AutoTable tersedia (akan menambahkan doc.autoTable)
       const { jsPDF } = window.jspdf;
       const tmp = new jsPDF();
       if (typeof tmp.autoTable !== "function") {
         showLibError("Gagal memuat plugin jsPDF-AutoTable. Coba reload halaman.");
         throw new Error("autoTable not loaded");
       }
+      // html2canvas untuk fallback gambar tabel (opsional)
       if (!window.html2canvas) {
         showLibError("Gagal memuat html2canvas. Fallback render tabel ke gambar tidak tersedia.");
       }
@@ -900,38 +903,45 @@
         const dataForPdf = { pertemuan, tanggal, pelajaran, aktivitas, hasil };
         const blob = await generatePdfBlob(dataForPdf);
 
-        // 5. Coba gunakan Web Share API (Mobile) atau Fallback ke Download (Desktop)
-        let sharedViaWebShare = false;
+        // 5. Tentukan Perilaku Berbagi / Unduh berdasarkan Perangkat
+        let handledPdf = false;
         const summaryText = `Rapor pertemuan ${pertemuan || "-"} (${tanggal || "-"})\n\nPelajaran: ${pelajaran || "-"}\nAktivitas: ${aktivitas || "-"}\nHasil: ${hasil || "-"}`; // Pesan awal WA
         
+        console.log("Deteksi Perangkat:");
+        console.log("isMobile():", isMobile());
+        console.log("navigator.share:", !!navigator.share); // !! untuk mengubah ke boolean
+        console.log("navigator.canShare (files):", !!(navigator.canShare && navigator.canShare({ files: [new File([blob], pdfFileName, { type: 'application/pdf' })] })));
+
         if (isMobile() && navigator.share && navigator.canShare && navigator.canShare({ files: [new File([blob], pdfFileName, { type: 'application/pdf' })] })) {
             try {
+                console.log("Mencoba menggunakan Web Share API...");
                 await navigator.share({
                     files: [new File([blob], pdfFileName, { type: 'application/pdf' })],
                     title: "Rapor Pertemuan",
                     text: summaryText
                 });
-                sharedViaWebShare = true;
+                handledPdf = true;
+                console.log("Web Share API berhasil.");
                 // Jika Web Share berhasil, kita mungkin tidak perlu membuka WA secara terpisah jika WA sudah muncul di share sheet
                 if (whatsappWindow && !whatsappWindow.closed) { whatsappWindow.close(); } // Tutup jendela kosong jika share sheet muncul
+                shareInstructionsEl.innerHTML = `Lembar berbagi telah muncul di perangkat Anda. Silakan pilih aplikasi WhatsApp (atau aplikasi lain) untuk membagikan rapor PDF.`;
             } catch (shareError) {
                 console.warn("Web Share API gagal atau dibatalkan:", shareError);
                 // Jika berbagi dibatalkan atau gagal, kita fallback ke unduhan dan buka WA
+                handledPdf = false;
             }
         }
 
-        if (!sharedViaWebShare) { // Jika Web Share tidak digunakan atau gagal (termasuk di desktop)
+        if (!handledPdf) { // Jika Web Share tidak digunakan atau gagal (ini mencakup desktop & mobile fallback)
+            console.log("Menggunakan fallback: Mengunduh PDF.");
             await downloadBlob(blob, pdfFileName); // Selalu unduh di desktop/jika share gagal
             
-            // Perbarui instruksi di UI
+            // Perbarui instruksi di UI untuk manual attachment
             shareInstructionsEl.innerHTML = `File PDF dengan nama "<b>${pdfFileName}</b>" telah diunduh ke perangkat Anda. Sebuah tab baru akan terbuka untuk WhatsApp. Anda perlu melampirkan file PDF tersebut secara manual di chat WhatsApp.`;
-        } else {
-            // Instruksi untuk mobile setelah share sheet
-            shareInstructionsEl.innerHTML = `Lembar berbagi telah muncul di perangkat Anda. Silakan pilih aplikasi WhatsApp (atau aplikasi lain) untuk membagikan rapor PDF.`;
         }
 
         // 6. Buka WhatsApp dengan pesan pra-isi
-        const waTextForUrl = summaryText + (sharedViaWebShare ? '' : '\n\nSilakan lampirkan PDF rapor yang baru diunduh.'); // Tambah instruksi lampirkan hanya jika tidak pakai share sheet
+        const waTextForUrl = summaryText + (handledPdf ? '' : '\n\nSilakan lampirkan PDF rapor yang baru diunduh.'); // Tambah instruksi lampirkan hanya jika tidak pakai share sheet
         const url = waUrlForDevice(waNumber, waTextForUrl);
 
         if (whatsappWindow) {
@@ -1144,7 +1154,7 @@
       updatePreview(); // Perbarui preview awal
       loadAndRenderActivityLog(); // Muat log aktivitas saat halaman dimuat
 
-      // Perbarui instruksi berdasarkan apakah Web Share API didukung
+      // Perbarui instruksi sesuai deteksi perangkat
       if (isMobile() && navigator.share && navigator.canShare && navigator.canShare({ files: [new File([], 'test.pdf', { type: 'application/pdf' })] })) {
         shareInstructionsEl.textContent = `File PDF akan dibuat dan lembar berbagi akan muncul di perangkat Anda. Silakan pilih aplikasi WhatsApp (atau aplikasi lain) untuk membagikan rapor PDF.`;
       } else {
