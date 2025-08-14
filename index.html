@@ -1,5 +1,3 @@
---- START OF FILE V2.html ---
-
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -35,7 +33,7 @@
       justify-content: center; /* Centers content horizontally */
       vertical-align: middle; /* Ensures inline elements align correctly with text around them */
       cursor: pointer;
-      margin-top: 0; /* <<< KUNCI PERBAIKAN: Hapus margin-top untuk tombol-label ini */
+      margin-top: 0; 
     }
     .btn:active { background:var(--wa-dark); } /* Re-apply active state */
 
@@ -904,44 +902,54 @@
         const blob = await generatePdfBlob(dataForPdf);
 
         // 5. Tentukan Perilaku Berbagi / Unduh berdasarkan Perangkat
-        let handledPdf = false;
+        let handledPdfByWebShare = false;
         const summaryText = `Rapor pertemuan ${pertemuan || "-"} (${tanggal || "-"})\n\nPelajaran: ${pelajaran || "-"}\nAktivitas: ${aktivitas || "-"}\nHasil: ${hasil || "-"}`; // Pesan awal WA
         
-        console.log("Deteksi Perangkat:");
-        console.log("isMobile():", isMobile());
-        console.log("navigator.share:", !!navigator.share); // !! untuk mengubah ke boolean
-        console.log("navigator.canShare (files):", !!(navigator.canShare && navigator.canShare({ files: [new File([blob], pdfFileName, { type: 'application/pdf' })] })));
-
-        if (isMobile() && navigator.share && navigator.canShare && navigator.canShare({ files: [new File([blob], pdfFileName, { type: 'application/pdf' })] })) {
+        console.log("--- Deteksi & Uji Web Share API (Di Perangkat Ini) ---");
+        const isMobileDevice = isMobile(); // Panggil sekali saja
+        const hasNavigatorShare = !!navigator.share;
+        // Coba navigator.canShare dengan objek File yang sebenarnya
+        let canSharePdfFile = false;
+        if (hasNavigatorShare && navigator.canShare) {
             try {
-                console.log("Mencoba menggunakan Web Share API...");
+                canSharePdfFile = navigator.canShare({ files: [new File([blob], pdfFileName, { type: 'application/pdf' })] });
+            } catch (e) {
+                console.error("Error calling navigator.canShare with files:", e);
+                canSharePdfFile = false; // Jika error, anggap tidak bisa share
+            }
+        }
+        console.log("isMobile():", isMobileDevice);
+        console.log("navigator.share tersedia:", hasNavigatorShare); 
+        console.log("navigator.canShare(file PDF) didukung:", canSharePdfFile);
+
+        if (isMobileDevice && hasNavigatorShare && canSharePdfFile) {
+            try {
+                console.log("Kondisi Web Share API terpenuhi. Mencoba menggunakan Web Share API...");
                 await navigator.share({
                     files: [new File([blob], pdfFileName, { type: 'application/pdf' })],
                     title: "Rapor Pertemuan",
                     text: summaryText
                 });
-                handledPdf = true;
-                console.log("Web Share API berhasil.");
-                // Jika Web Share berhasil, kita mungkin tidak perlu membuka WA secara terpisah jika WA sudah muncul di share sheet
-                if (whatsappWindow && !whatsappWindow.closed) { whatsappWindow.close(); } // Tutup jendela kosong jika share sheet muncul
+                handledPdfByWebShare = true; 
+                console.log("Web Share API berhasil dijalankan.");
+                if (whatsappWindow && !whatsappWindow.closed) { whatsappWindow.close(); } 
                 shareInstructionsEl.innerHTML = `Lembar berbagi telah muncul di perangkat Anda. Silakan pilih aplikasi WhatsApp (atau aplikasi lain) untuk membagikan rapor PDF.`;
             } catch (shareError) {
-                console.warn("Web Share API gagal atau dibatalkan:", shareError);
-                // Jika berbagi dibatalkan atau gagal, kita fallback ke unduhan dan buka WA
-                handledPdf = false;
+                console.warn("Web Share API gagal atau dibatalkan oleh pengguna:", shareError); 
+                handledPdfByWebShare = false; // Fallback jika gagal/dibatalkan
             }
         }
 
-        if (!handledPdf) { // Jika Web Share tidak digunakan atau gagal (ini mencakup desktop & mobile fallback)
-            console.log("Menggunakan fallback: Mengunduh PDF.");
-            await downloadBlob(blob, pdfFileName); // Selalu unduh di desktop/jika share gagal
+        if (!handledPdfByWebShare) { // Jika Web Share tidak digunakan atau gagal
+            console.log("Web Share API tidak digunakan atau gagal. Menggunakan fallback: Mengunduh PDF.");
+            await downloadBlob(blob, pdfFileName); 
             
-            // Perbarui instruksi di UI untuk manual attachment
             shareInstructionsEl.innerHTML = `File PDF dengan nama "<b>${pdfFileName}</b>" telah diunduh ke perangkat Anda. Sebuah tab baru akan terbuka untuk WhatsApp. Anda perlu melampirkan file PDF tersebut secara manual di chat WhatsApp.`;
         }
 
         // 6. Buka WhatsApp dengan pesan pra-isi
-        const waTextForUrl = summaryText + (handledPdf ? '' : '\n\nSilakan lampirkan PDF rapor yang baru diunduh.'); // Tambah instruksi lampirkan hanya jika tidak pakai share sheet
+        // Tambah instruksi lampirkan hanya jika tidak pakai share sheet
+        const waTextForUrl = summaryText + (handledPdfByWebShare ? '' : '\n\nSilakan lampirkan PDF rapor yang baru diunduh.'); 
         const url = waUrlForDevice(waNumber, waTextForUrl);
 
         if (whatsappWindow) {
@@ -1155,9 +1163,14 @@
       loadAndRenderActivityLog(); // Muat log aktivitas saat halaman dimuat
 
       // Perbarui instruksi sesuai deteksi perangkat
-      if (isMobile() && navigator.share && navigator.canShare && navigator.canShare({ files: [new File([], 'test.pdf', { type: 'application/pdf' })] })) {
+      // Ini hanya memperbarui teks instruksi, bukan logika generate PDF
+      // Logika generate PDF dan share API ada di handleGenerate()
+      const testBlob = new Blob([], { type: 'application/pdf' }); // Buat blob kosong untuk pengujian canShare
+      if (isMobile() && navigator.share && navigator.canShare && navigator.canShare({ files: [new File([testBlob], 'test.pdf', { type: 'application/pdf' })] })) {
+        initialInstructionsEl.textContent = `Isi data pertemuan, pilih pelajaran (bisa tambah manual), aktivitas, dan hasil. PDF akan dibuat dan lembar berbagi akan muncul di perangkat Anda.`;
         shareInstructionsEl.textContent = `File PDF akan dibuat dan lembar berbagi akan muncul di perangkat Anda. Silakan pilih aplikasi WhatsApp (atau aplikasi lain) untuk membagikan rapor PDF.`;
       } else {
+        initialInstructionsEl.textContent = `Isi data pertemuan, pilih pelajaran (bisa tambah manual), aktivitas, dan hasil. PDF akan dibuat lalu kamu bisa bagikan via WhatsApp (attach manual).`;
         shareInstructionsEl.textContent = `File PDF akan diunduh ke perangkat Anda. Sebuah tab baru akan terbuka untuk WhatsApp. Anda perlu melampirkan file PDF tersebut secara manual di chat WhatsApp.`;
       }
     });
