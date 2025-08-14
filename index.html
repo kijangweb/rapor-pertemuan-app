@@ -357,7 +357,8 @@
         throw new Error("jsPDF not loaded");
       }
       const { jsPDF } = window.jspdf;
-      const tmp = new jspdf.jsPDF(); // Pastikan pemanggilan constructor benar
+      // Perbaikan: Pastikan constructor jsPDF dipanggil dengan 'new'
+      const tmp = new jsPDF(); 
       if (typeof tmp.autoTable !== "function") {
         showLibError("Gagal memuat plugin jsPDF-AutoTable. Coba reload halaman.");
         throw new Error("autotable not loaded");
@@ -846,15 +847,11 @@
       btn.disabled = true;
       btn.textContent = "Membuat PDF...";
 
-      // window.open() tidak akan dipanggil di awal lagi.
-      // Hanya akan dipanggil jika di desktop, atau jika mobile tapi share API tidak didukung/gagal
       let whatsappWindow = null; 
       const pdfFileName = `rapor_pertemuan_${pertemuan || 'N'}_${tanggal || 'tanggal'}.pdf`;
       const summaryText = `Rapor pertemuan ${pertemuan || "-"} (${tanggal || "-"})\n\nPelajaran: ${pelajaran || "-"}\nAktivitas: ${aktivitas || "-"}\nHasil: ${hasil || "-"}`; // Pesan utama WA
 
       try {
-        // --- Bagian Utama Proses Generate ---
-
         // 1. Kirim data ke Google Apps Script (tetap lakukan ini di awal untuk logging)
         console.log("Mengirim data rapor ke Google Apps Script:", reportData);
         if (GOOGLE_APPS_SCRIPT_WEB_APP_URL === "YOUR_WEB_APP_URL_HERE") {
@@ -915,7 +912,7 @@
                 // KONDISI MOBILE IDEAL: WEB SHARE API DIDUKUNG & BISA BERBAGI FILE PDF
                 try {
                     console.log("Mobile: Kondisi Web Share API terpenuhi. Meluncurkan Web Share API.");
-                    // Langsung panggil navigator.share. Tidak ada window.open atau unduhan otomatis.
+                    // Panggil navigator.share langsung di sini untuk memastikan user gesture
                     await navigator.share({
                         files: [pdfFile],
                         title: "Rapor Pertemuan",
