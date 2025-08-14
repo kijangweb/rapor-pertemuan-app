@@ -360,7 +360,7 @@
       const tmp = new jsPDF();
       if (typeof tmp.autoTable !== "function") {
         showLibError("Gagal memuat plugin jsPDF-AutoTable. Coba reload halaman.");
-        throw new Error("autoTable not loaded");
+        throw new Error("autotable not loaded");
       }
       if (!window.html2canvas) {
         showLibError("Gagal memuat html2canvas. Fallback render tabel ke gambar tidak tersedia.");
@@ -844,9 +844,11 @@
 
       const btn = document.getElementById("btnGenerate");
       btn.disabled = true;
-      btn.textContent = "Menyimpan data & Membuat PDF...";
+      btn.textContent = "Membuat PDF...";
 
-      let whatsappWindow = null; // Ini akan digunakan untuk window.open()
+      // Hanya buka window/tab kosong jika bukan mobile atau jika mobile tapi share API tidak didukung/gagal
+      // Ini dilakukan di akhir jika memang perlu (untuk desktop)
+      let whatsappWindow = null; 
       const pdfFileName = `rapor_pertemuan_${pertemuan || 'N'}_${tanggal || 'tanggal'}.pdf`;
       const summaryText = `Rapor pertemuan ${pertemuan || "-"} (${tanggal || "-"})\n\nPelajaran: ${pelajaran || "-"}\nAktivitas: ${aktivitas || "-"}\nHasil: ${hasil || "-"}`; // Pesan utama WA
 
@@ -872,7 +874,7 @@
           alert("Gagal menyimpan data ke log. Silakan coba lagi. Detail: " + result.message);
           btn.disabled = false;
           btn.textContent = "Generate PDF & Buka WhatsApp";
-          return; // Hentikan proses jika penyimpanan gagal
+          return; 
         }
 
         // 2. Pastikan library PDF dimuat
@@ -888,6 +890,7 @@
         const hasNavigatorShare = !!navigator.share;
         let canSharePdfFile = false; // Default ke false
         
+        // Uji kemampuan navigator.canShare dengan file (hanya jika API dasarnya ada)
         if (hasNavigatorShare && navigator.canShare) { 
             try {
                 canSharePdfFile = navigator.canShare({ files: [pdfFile] });
@@ -902,23 +905,22 @@
         console.log("navigator.share tersedia:", hasNavigatorShare); 
         console.log("navigator.canShare(file PDF) didukung:", canSharePdfFile);
 
+
         if (isMobileDevice) {
             // --- JALUR KHUSUS UNTUK PERANGKAT MOBILE ---
             console.log("Perangkat Mobile Terdeteksi.");
             if (hasNavigatorShare && canSharePdfFile) {
                 // KONDISI MOBILE IDEAL: WEB SHARE API DIDUKUNG & BISA BERBAGI FILE PDF
                 try {
-                    console.log("Mobile: Kondisi Web Share API terpenuhi. Mencoba menggunakan Web Share API...");
-                    // Buka window kosong hanya jika diperlukan, tapi Web Share API tidak memerlukannya
-                    // Cukup langsung panggil navigator.share
+                    console.log("Mobile: Kondisi Web Share API terpenuhi. Meluncurkan Web Share API.");
                     await navigator.share({
                         files: [pdfFile],
                         title: "Rapor Pertemuan",
                         text: summaryText
                     });
-                    console.log("Mobile: Web Share API berhasil dijalankan. Mengakhiri proses.");
+                    console.log("Mobile: Web Share API berhasil dijalankan. Tidak ada unduhan atau pembukaan WhatsApp.");
                     shareInstructionsEl.innerHTML = `Lembar berbagi telah muncul di perangkat Anda. Silakan pilih aplikasi WhatsApp (atau aplikasi lain) untuk membagikan rapor PDF.`;
-                    // Jika window kosong dibuka sebelumnya, tutup jika Web Share berhasil
+                    // Jika ada window.open kosong yang terbuka dari klik, tutup (meskipun idealnya tidak dibuka di mobile)
                     if (whatsappWindow && !whatsappWindow.closed) { whatsappWindow.close(); } 
                     return; // SANGAT PENTING: Hentikan eksekusi di sini untuk mobile jika berhasil share
                 } catch (shareError) {
@@ -931,7 +933,7 @@
                 }
             } else {
                 // Mobile: Web Share API TIDAK DIDUKUNG untuk file PDF
-                console.log("Mobile: Web Share API untuk file PDF TIDAK didukung. Memberi info dan menghentikan.");
+                console.log("Mobile: Web Share API untuk file PDF TIDAK didukung. Memberi info dan menghentikan proses.");
                 if (whatsappWindow && !whatsappWindow.closed) { whatsappWindow.close(); } // Tutup jendela kosong
                 alert("Browser di perangkat seluler ini tidak mendukung berbagi PDF langsung. Anda bisa menggunakan versi desktop untuk mengunduh dan melampirkan PDF secara manual.");
                 shareInstructionsEl.innerHTML = `Browser di perangkat ini tidak mendukung berbagi PDF langsung. Anda bisa menggunakan desktop untuk mengunduh dan melampirkan PDF.`;
@@ -940,6 +942,15 @@
         } else {
             // --- JALUR KHUSUS UNTUK PERANGKAT DESKTOP ---
             console.log("Perangkat Desktop Terdeteksi.");
+            // Buka window kosong untuk WhatsApp (strategi anti-popup blocker)
+            whatsappWindow = window.open("", "_blank"); // Dibuka di sini untuk desktop
+            if (whatsappWindow) {
+              whatsappWindow.document.write("Mohon tunggu, mempersiapkan PDF dan membuka WhatsApp...");
+              whatsappWindow.document.title = "Membuka WhatsApp...";
+            } else {
+              alert("Pop-up untuk WhatsApp diblokir. Harap izinkan pop-up atau buka WhatsApp secara manual.");
+            }
+
             await downloadBlob(blob, pdfFileName); // Unduh PDF di desktop
             
             shareInstructionsEl.innerHTML = `File PDF dengan nama "<b>${pdfFileName}</b>" telah diunduh ke perangkat Anda. Sebuah tab baru akan terbuka untuk WhatsApp. Anda perlu melampirkan file PDF tersebut secara manual di chat WhatsApp.`;
@@ -948,15 +959,14 @@
             const waTextForUrl = summaryText + '\n\nSilakan lampirkan PDF rapor yang baru diunduh.'; 
             const url = waUrlForDevice(waNumber, waTextForUrl);
 
-            // Buka window kosong yang sudah dibuat di awal
             if (whatsappWindow) {
               if (!whatsappWindow.closed) {
                 whatsappWindow.location.href = url;
               } else {
-                window.open(url, "_blank"); // Fallback jika sudah ditutup
+                window.open(url, "_blank"); 
               }
             } else {
-              window.open(url, "_blank"); // Fallback jika tidak bisa dibuka sama sekali di awal
+              window.open(url, "_blank"); 
             }
         }
 
