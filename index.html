@@ -822,7 +822,7 @@
       const aktivitas = document.getElementById("aktivitas").value;
       const hasil = document.getElementById("hasil").value;
       const pelajaran = getFormattedSelectedLessons();
-      const coachName = document.getElementById("coachName").value || "Unknown Coach"; // Ambil nama coach
+      const coachName = document.getElementById("coachName").value || "Unknown Coach"; 
 
       const waNumberInput = document.getElementById("waNumber");
       const waNumber = formatWhatsAppNumber(waNumberInput.value);
@@ -833,7 +833,6 @@
         return;
       }
 
-      // Data untuk dikirim ke Google Apps Script
       const reportData = {
         coachName: coachName,
         pertemuan: pertemuan,
@@ -849,70 +848,71 @@
 
       let whatsappWindow = null; 
       const pdfFileName = `rapor_pertemuan_${pertemuan || 'N'}_${tanggal || 'tanggal'}.pdf`;
-      const summaryText = `Rapor pertemuan ${pertemuan || "-"} (${tanggal || "-"})\n\nPelajaran: ${pelajaran || "-"}\nAktivitas: ${aktivitas || "-"}\nHasil: ${hasil || "-"}`; // Pesan utama WA
+      const summaryText = `Rapor pertemuan ${pertemuan || "-"} (${tanggal || "-"})\n\nPelajaran: ${pelajaran || "-"}\nAktivitas: ${aktivitas || "-"}\nHasil: ${hasil || "-"}`; 
 
       try {
-        // 1. Kirim data ke Google Apps Script (tetap lakukan ini di awal untuk logging)
-        console.log("Mengirim data rapor ke Google Apps Script:", reportData);
-        if (GOOGLE_APPS_SCRIPT_WEB_APP_URL === "YOUR_WEB_APP_URL_HERE") {
-          throw new Error("URL Web App Google Apps Script belum diatur. Silakan ganti 'YOUR_WEB_APP_URL_HERE' dengan URL asli Anda.");
-        }
-        const response = await fetch(GOOGLE_APPS_SCRIPT_WEB_APP_URL, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded"
-          },
-          body: new URLSearchParams(reportData).toString()
-        });
-        const result = await response.json();
-        if (result.status === "success") {
-          console.log("Data berhasil disimpan di Google Sheet:", result.message);
-          await loadAndRenderActivityLog(); 
-        } else {
-          console.error("Gagal menyimpan data ke Google Sheet:", result.message);
-          alert("Gagal menyimpan data ke log. Silakan coba lagi. Detail: " + result.message);
-          btn.disabled = false;
-          btn.textContent = "Generate PDF & Buka WhatsApp";
-          return; 
-        }
+        // --- Operasi Asinkron Utama yang Berpotensi Memakan Waktu ---
+        const gasSavePromise = (async () => {
+            console.log("Mengirim data rapor ke Google Apps Script:", reportData);
+            if (GOOGLE_APPS_SCRIPT_WEB_APP_URL === "YOUR_WEB_APP_URL_HERE") {
+              throw new Error("URL Web App Google Apps Script belum diatur. Silakan ganti 'YOUR_WEB_APP_URL_HERE' dengan URL asli Anda.");
+            }
+            const response = await fetch(GOOGLE_APPS_SCRIPT_WEB_APP_URL, {
+              method: "POST",
+              headers: { "Content-Type": "application/x-www-form-urlencoded" },
+              body: new URLSearchParams(reportData).toString()
+            });
+            const result = await response.json();
+            if (result.status === "success") {
+              console.log("Data berhasil disimpan di Google Sheet:", result.message);
+              await loadAndRenderActivityLog(); 
+            } else {
+              console.error("Gagal menyimpan data ke Google Sheet:", result.message);
+              // Ini akan di-catch oleh blok catch utama, kemudian muncul alert
+              throw new Error("Gagal menyimpan data ke log: " + result.message); 
+            }
+        })(); // Langsung panggil async function ini
 
-        // 2. Pastikan library PDF dimuat
-        await ensureLibraries();
+        const pdfGenerationPromise = (async () => {
+            await ensureLibraries(); 
+            const dataForPdf = { pertemuan, tanggal, pelajaran, aktivitas, hasil };
+            return await generatePdfBlob(dataForPdf);
+        })(); // Langsung panggil async function ini
 
-        // 3. Generate PDF Blob
-        const dataForPdf = { pertemuan, tanggal, pelajaran, aktivitas, hasil };
-        const blob = await generatePdfBlob(dataForPdf);
-        const pdfFile = new File([blob], pdfFileName, { type: 'application/pdf' });
 
         // --- Logika Deteksi Perangkat & Aksi Berbagi ---
         const isMobileDevice = isMobile(); 
         const hasNavigatorShare = !!navigator.share;
-        let canSharePdfFile = false; // Default ke false
         
-        // Uji kemampuan navigator.canShare dengan file (hanya jika API dasarnya ada)
-        if (hasNavigatorShare && navigator.canShare) { 
-            try {
-                canSharePdfFile = navigator.canShare({ files: [pdfFile] });
-            } catch (e) {
-                console.error("Error calling navigator.canShare with files:", e);
-                canSharePdfFile = false; 
-            }
-        }
-
         console.log("--- Deteksi Perangkat & Kemampuan Berbagi ---");
         console.log("isMobile():", isMobileDevice);
         console.log("navigator.share tersedia:", hasNavigatorShare); 
-        console.log("navigator.canShare(file PDF) didukung:", canSharePdfFile);
-
-
+        
         if (isMobileDevice) {
             // --- JALUR KHUSUS UNTUK PERANGKAT MOBILE ---
-            console.log("Perangkat Mobile Terdeteksi.");
-            if (hasNavigatorShare && canSharePdfFile) {
-                // KONDISI MOBILE IDEAL: WEB SHARE API DIDUKUNG & BISA BERBAGI FILE PDF
-                try {
+            console.log("Perangkat Mobile Terdeteksi. Mengutamakan Web Share API.");
+            
+            let pdfBlobForShare = null;
+            try {
+                // Tunggu PDF selesai dibuat
+                pdfBlobForShare = await pdfGenerationPromise; 
+                const pdfFile = new File([pdfBlobForShare], pdfFileName, { type: 'application/pdf' });
+
+                // Uji kemampuan navigator.canShare dengan file (hanya jika API dasarnya ada)
+                let canSharePdfFile = false;
+                if (hasNavigatorShare && navigator.canShare) { 
+                    try {
+                        canSharePdfFile = navigator.canShare({ files: [pdfFile] });
+                    } catch (e) {
+                        console.error("Error calling navigator.canShare with files (during pre-check):", e);
+                        canSharePdfFile = false; 
+                    }
+                }
+                console.log("Mobile: navigator.canShare(file PDF) didukung:", canSharePdfFile);
+
+                if (hasNavigatorShare && canSharePdfFile) {
+                    // KONDISI MOBILE IDEAL: WEB SHARE API DIDUKUNG & BISA BERBAGI FILE PDF
                     console.log("Mobile: Kondisi Web Share API terpenuhi. Meluncurkan Web Share API.");
-                    // Panggil navigator.share langsung di sini untuk memastikan user gesture
                     await navigator.share({
                         files: [pdfFile],
                         title: "Rapor Pertemuan",
@@ -920,20 +920,29 @@
                     });
                     console.log("Mobile: Web Share API berhasil dijalankan. Tidak ada unduhan atau pembukaan WhatsApp. Proses selesai.");
                     shareInstructionsEl.innerHTML = `Lembar berbagi telah muncul di perangkat Anda. Silakan pilih aplikasi WhatsApp (atau aplikasi lain) untuk membagikan rapor PDF.`;
+                    
+                    // Tunggu juga proses simpan ke GAS selesai di background
+                    await gasSavePromise; 
                     return; // SANGAT PENTING: Hentikan eksekusi di sini jika berhasil share
-                } catch (shareError) {
-                    // Mobile: Web Share API gagal (misal: dibatalkan pengguna, atau error lain)
-                    console.warn("Mobile: Web Share API gagal atau dibatalkan oleh pengguna:", shareError); 
-                    alert("Berbagi PDF langsung dibatalkan atau tidak tersedia di perangkat ini. Silakan coba cara lain atau gunakan desktop.");
-                    shareInstructionsEl.innerHTML = `Berbagi PDF langsung dibatalkan atau tidak tersedia di perangkat ini. Silakan coba cara lain atau gunakan desktop.`;
-                    return; // SANGAT PENTING: Hentikan eksekusi di sini untuk mobile jika gagal/dibatalkan share
+                } else {
+                    // Mobile: Web Share API TIDAK DIDUKUNG untuk file PDF, atau canShare mengembalikan false
+                    console.log("Mobile: Web Share API untuk file PDF TIDAK didukung. Memberi info dan menghentikan proses.");
+                    alert("Browser di perangkat seluler ini tidak mendukung berbagi PDF langsung. Anda bisa menggunakan versi desktop untuk mengunduh dan melampirkan PDF secara manual.");
+                    shareInstructionsEl.innerHTML = `Browser di perangkat ini tidak mendukung berbagi PDF langsung. Anda bisa menggunakan desktop untuk mengunduh dan melampirkan PDF.`;
+                    
+                    // Tunggu juga proses simpan ke GAS selesai di background
+                    await gasSavePromise;
+                    return; // SANGAT PENTING: Hentikan eksekusi di sini untuk mobile jika tidak didukung
                 }
-            } else {
-                // Mobile: Web Share API TIDAK DIDUKUNG untuk file PDF
-                console.log("Mobile: Web Share API untuk file PDF TIDAK didukung. Memberi info dan menghentikan proses.");
-                alert("Browser di perangkat seluler ini tidak mendukung berbagi PDF langsung. Anda bisa menggunakan versi desktop untuk mengunduh dan melampirkan PDF secara manual.");
-                shareInstructionsEl.innerHTML = `Browser di perangkat ini tidak mendukung berbagi PDF langsung. Anda bisa menggunakan desktop untuk mengunduh dan melampirkan PDF.`;
-                return; // SANGAT PENTING: Hentikan eksekusi di sini untuk mobile jika tidak didukung
+            } catch (shareError) {
+                // Mobile: Web Share API gagal (misal: dibatalkan pengguna, atau error lain)
+                console.warn("Mobile: Web Share API gagal atau dibatalkan oleh pengguna:", shareError); 
+                alert("Berbagi PDF langsung dibatalkan atau tidak tersedia di perangkat ini. Silakan coba cara lain atau gunakan desktop.");
+                shareInstructionsEl.innerHTML = `Berbagi PDF langsung dibatalkan atau tidak tersedia di perangkat ini. Silakan coba cara lain atau gunakan desktop.`;
+                
+                // Tunggu juga proses simpan ke GAS selesai di background
+                await gasSavePromise;
+                return; // SANGAT PENTING: Hentikan eksekusi di sini untuk mobile jika gagal/dibatalkan share
             }
         } else {
             // --- JALUR KHUSUS UNTUK PERANGKAT DESKTOP ---
@@ -947,7 +956,8 @@
               alert("Pop-up untuk WhatsApp diblokir. Harap izinkan pop-up atau buka WhatsApp secara manual.");
             }
 
-            await downloadBlob(blob, pdfFileName); // Unduh PDF di desktop
+            const pdfBlob = await pdfGenerationPromise; // Tunggu PDF selesai dibuat
+            await downloadBlob(pdfBlob, pdfFileName); // Unduh PDF di desktop
             
             shareInstructionsEl.innerHTML = `File PDF dengan nama "<b>${pdfFileName}</b>" telah diunduh ke perangkat Anda. Sebuah tab baru akan terbuka untuk WhatsApp. Anda perlu melampirkan file PDF tersebut secara manual di chat WhatsApp.`;
 
@@ -965,6 +975,9 @@
             } else {
               window.open(url, "_blank"); 
             }
+
+            // Tunggu proses simpan ke GAS selesai di background
+            await gasSavePromise;
         }
 
       } catch (err) {
