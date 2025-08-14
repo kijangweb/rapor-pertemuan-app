@@ -1,5 +1,3 @@
---- START OF FILE V2.html ---
-
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -344,7 +342,7 @@
 
     // Elemen instruksi berbagi
     const shareInstructionsEl = document.getElementById("shareInstructions");
-    const initialInstructionsEl = document.getElementById("initialInstructions"); // Ini adalah instruksi di bagian atas halaman
+    const initialInstructionsEl = document.getElementById("initialInstructions"); 
 
     // ======= Helper: tampilkan error lib kalau CDN gagal =======
     function showLibError(msg) {
@@ -354,19 +352,16 @@
     }
 
     async function ensureLibraries() {
-      // Pastikan jsPDF tersedia
       if (!window.jspdf || !window.jspdf.jsPDF) {
         showLibError("Gagal memuat jsPDF dari CDN. Pastikan koneksi internet aktif atau coba reload halaman.");
         throw new Error("jsPDF not loaded");
       }
-      // Pastikan AutoTable tersedia (akan menambahkan doc.autoTable)
       const { jsPDF } = window.jspdf;
       const tmp = new jsPDF();
       if (typeof tmp.autoTable !== "function") {
         showLibError("Gagal memuat plugin jsPDF-AutoTable. Coba reload halaman.");
         throw new Error("autoTable not loaded");
       }
-      // html2canvas untuk fallback gambar tabel (opsional)
       if (!window.html2canvas) {
         showLibError("Gagal memuat html2canvas. Fallback render tabel ke gambar tidak tersedia.");
       }
@@ -377,7 +372,7 @@
     const initialLessonCategories = [
       { id: 'cat-umum', name: 'Umum', subjects: ["Matematika", "Bahasa Indonesia", "Bahasa Inggris", "IPA", "IPS", "Agama", "Seni Budaya", "Penjas", "TIK"] }
     ];
-    let lessonCategories = []; // Ini akan diisi dari localStorage
+    let lessonCategories = []; 
 
     const activeLessonChecklistContainer = document.getElementById("activeLessonChecklistContainer");
     const selectLessonCategoryDisplay = document.getElementById("selectLessonCategoryDisplay");
@@ -464,13 +459,13 @@
 
       if (!category) {
         activeLessonChecklistContainer.innerHTML = "<div class='muted'>Pilih kelompok pelajaran dari dropdown di atas.</div>";
-        editCategoryNameInput.value = ""; // Clear edit field
-        editCategoryNameInput.readOnly = true; // Make it read-only
+        editCategoryNameInput.value = ""; 
+        editCategoryNameInput.readOnly = true; 
         return;
       }
 
-      editCategoryNameInput.value = category.name; // Set edit field to selected category name
-      editCategoryNameInput.readOnly = false; // Make it editable
+      editCategoryNameInput.value = category.name; 
+      editCategoryNameInput.readOnly = false; 
 
       const lessonListDiv = document.createElement("div");
       lessonListDiv.className = "lesson-list";
@@ -504,11 +499,10 @@
         wrapper.appendChild(cb);
         wrapper.appendChild(span);
 
-        // Tombol hapus pelajaran individu
         const deleteSubjectBtn = document.createElement("button");
         deleteSubjectBtn.className = "delete-subject-btn";
         deleteSubjectBtn.textContent = "x";
-        deleteSubjectBtn.type = "button"; // Penting agar tidak submit form
+        deleteSubjectBtn.type = "button"; 
         deleteSubjectBtn.title = `Hapus pelajaran ${subjectName}`;
         deleteSubjectBtn.dataset.categoryId = category.id;
         deleteSubjectBtn.dataset.subjectName = subjectName;
@@ -544,15 +538,13 @@
         selectLessonCategoryToAdd.appendChild(optionAdd);
       });
 
-      // Maintain selected value or set default
       if (selectedDisplayId && lessonCategories.some(cat => cat.id === selectedDisplayId)) {
           selectLessonCategoryDisplay.value = selectedDisplayId;
       } else {
-          selectLessonCategoryDisplay.value = lessonCategories[0].id; // Fallback to first if initial or deleted
+          selectLessonCategoryDisplay.value = lessonCategories[0].id; 
       }
       selectLessonCategoryToAdd.value = selectLessonCategoryDisplay.value;
       
-      // Update the edit category name input based on currently selected display category
       const currentSelectedCategory = lessonCategories.find(cat => cat.id === selectLessonCategoryDisplay.value);
       editCategoryNameInput.value = currentSelectedCategory ? currentSelectedCategory.name : "";
       editCategoryNameInput.readOnly = !currentSelectedCategory;
@@ -622,10 +614,9 @@
     selectLessonCategoryDisplay.addEventListener('change', () => {
         const selectedId = selectLessonCategoryDisplay.value;
         renderSelectedCategorySubjects(selectedId);
-        // Perbarui input edit dengan nama kategori yang dipilih
         const selectedCategory = lessonCategories.find(cat => cat.id === selectedId);
         editCategoryNameInput.value = selectedCategory ? selectedCategory.name : "";
-        editCategoryNameInput.readOnly = !selectedCategory; // Make read-only if no category selected
+        editCategoryNameInput.readOnly = !selectedCategory; 
         updatePreview();
     });
 
@@ -651,8 +642,7 @@
         if (categoryToRename) {
             categoryToRename.name = newName;
             saveLessonCategoriesToLocalStorage();
-            populateCategoryDropdowns(selectedId); // Re-populate dropdowns to update names
-            // No need to re-render subjects unless a checkbox was added/removed, name change doesn't affect that
+            populateCategoryDropdowns(selectedId); 
             updatePreview();
             alert(`Nama kelompok berhasil diubah menjadi "${newName}".`);
         }
@@ -674,13 +664,12 @@
             lessonCategories = lessonCategories.filter(cat => cat.id !== selectedId);
             saveLessonCategoriesToLocalStorage();
 
-            // Hapus juga status centang untuk kategori ini
             const checkedState = loadCheckedLessonsFromLocalStorage();
             delete checkedState[selectedId];
             saveCheckedLessonsToLocalStorage(checkedState);
 
-            populateCategoryDropdowns(); // Re-populate dropdowns
-            renderSelectedCategorySubjects(selectLessonCategoryDisplay.value); // Render default selected (first)
+            populateCategoryDropdowns(); 
+            renderSelectedCategorySubjects(selectLessonCategoryDisplay.value); 
             updatePreview();
             alert(`Kelompok "${categoryToDelete.name}" berhasil dihapus.`);
         }
@@ -697,7 +686,6 @@
             targetCategory.subjects = targetCategory.subjects.filter(s => s !== subjectName);
             saveLessonCategoriesToLocalStorage();
 
-            // Hapus juga dari status centang jika ada
             const checkedState = loadCheckedLessonsFromLocalStorage();
             if (checkedState[categoryId]) {
                 checkedState[categoryId] = checkedState[categoryId].filter(s => s !== subjectName);
@@ -707,7 +695,7 @@
             }
             saveCheckedLessonsToLocalStorage(checkedState);
 
-            renderSelectedCategorySubjects(categoryId); // Render ulang kelompok yang sama
+            renderSelectedCategorySubjects(categoryId); 
             updatePreview();
             alert(`Pelajaran "${subjectName}" berhasil dihapus.`);
         }
@@ -858,20 +846,12 @@
       btn.disabled = true;
       btn.textContent = "Menyimpan data & Membuat PDF...";
 
-      let whatsappWindow = null;
+      let whatsappWindow = null; // Ini akan digunakan untuk window.open()
       const pdfFileName = `rapor_pertemuan_${pertemuan || 'N'}_${tanggal || 'tanggal'}.pdf`;
+      const summaryText = `Rapor pertemuan ${pertemuan || "-"} (${tanggal || "-"})\n\nPelajaran: ${pelajaran || "-"}\nAktivitas: ${aktivitas || "-"}\nHasil: ${hasil || "-"}`; // Pesan utama WA
 
       try {
-        // 1. Buka jendela kosong untuk WhatsApp (strategi anti-popup blocker)
-        whatsappWindow = window.open("", "_blank");
-        if (whatsappWindow) {
-          whatsappWindow.document.write("Mohon tunggu, mempersiapkan PDF dan membuka WhatsApp...");
-          whatsappWindow.document.title = "Membuka WhatsApp...";
-        } else {
-          alert("Pop-up untuk WhatsApp diblokir. Harap izinkan pop-up atau buka WhatsApp secara manual.");
-        }
-
-        // 2. Kirim data ke Google Apps Script
+        // 1. Kirim data ke Google Apps Script (tetap lakukan ini di awal untuk logging)
         console.log("Mengirim data rapor ke Google Apps Script:", reportData);
         if (GOOGLE_APPS_SCRIPT_WEB_APP_URL === "YOUR_WEB_APP_URL_HERE") {
           throw new Error("URL Web App Google Apps Script belum diatur. Silakan ganti 'YOUR_WEB_APP_URL_HERE' dengan URL asli Anda.");
@@ -886,34 +866,29 @@
         const result = await response.json();
         if (result.status === "success") {
           console.log("Data berhasil disimpan di Google Sheet:", result.message);
-          await loadAndRenderActivityLog(); // Muat ulang log setelah data baru disimpan
+          await loadAndRenderActivityLog(); 
         } else {
           console.error("Gagal menyimpan data ke Google Sheet:", result.message);
           alert("Gagal menyimpan data ke log. Silakan coba lagi. Detail: " + result.message);
           btn.disabled = false;
           btn.textContent = "Generate PDF & Buka WhatsApp";
-          if (whatsappWindow && !whatsappWindow.closed) { whatsappWindow.close(); } 
           return; // Hentikan proses jika penyimpanan gagal
         }
 
-        // 3. Pastikan library PDF dimuat
+        // 2. Pastikan library PDF dimuat
         await ensureLibraries();
 
-        // 4. Generate PDF Blob
+        // 3. Generate PDF Blob
         const dataForPdf = { pertemuan, tanggal, pelajaran, aktivitas, hasil };
         const blob = await generatePdfBlob(dataForPdf);
-
-        // 5. Tentukan Perilaku Berbagi / Unduh / Info berdasarkan Perangkat
-        const isMobileDevice = isMobile(); 
         const pdfFile = new File([blob], pdfFileName, { type: 'application/pdf' });
-        const summaryText = `Rapor pertemuan ${pertemuan || "-"} (${tanggal || "-"})\n\nPelajaran: ${pelajaran || "-"}\nAktivitas: ${aktivitas || "-"}\nHasil: ${hasil || "-"}`; // Pesan utama WA
-        
-        console.log("--- Deteksi & Uji Web Share API (Di Perangkat Ini) ---");
-        console.log("isMobile():", isMobileDevice);
-        console.log("navigator.share tersedia:", !!navigator.share); 
-        
+
+        // --- Logika Deteksi Perangkat & Aksi Berbagi ---
+        const isMobileDevice = isMobile(); 
+        const hasNavigatorShare = !!navigator.share;
         let canSharePdfFile = false; // Default ke false
-        if (!!navigator.share && navigator.canShare) { 
+        
+        if (hasNavigatorShare && navigator.canShare) { 
             try {
                 canSharePdfFile = navigator.canShare({ files: [pdfFile] });
             } catch (e) {
@@ -921,53 +896,67 @@
                 canSharePdfFile = false; 
             }
         }
+
+        console.log("--- Deteksi Perangkat & Kemampuan Berbagi ---");
+        console.log("isMobile():", isMobileDevice);
+        console.log("navigator.share tersedia:", hasNavigatorShare); 
         console.log("navigator.canShare(file PDF) didukung:", canSharePdfFile);
 
-
-        if (isMobileDevice && !!navigator.share && canSharePdfFile) {
-            // PERANGKAT MOBILE & WEB SHARE API DIDUKUNG (Ini adalah jalur yang diinginkan untuk mobile)
-            try {
-                console.log("Mobile. Kondisi Web Share API terpenuhi. Mencoba menggunakan Web Share API...");
-                await navigator.share({
-                    files: [pdfFile],
-                    title: "Rapor Pertemuan",
-                    text: summaryText
-                });
-                console.log("Web Share API berhasil dijalankan.");
-                if (whatsappWindow && !whatsappWindow.closed) { whatsappWindow.close(); } // Tutup jendela kosong jika share sheet muncul
-                
-                // Perbarui instruksi UI
-                shareInstructionsEl.innerHTML = `Lembar berbagi telah muncul di perangkat Anda. Silakan pilih aplikasi WhatsApp (atau aplikasi lain) untuk membagikan rapor PDF.`;
-                // TIDAK ADA PEMBUKAAN URL WHATSAPP OTOMATIS JIKA SHARE SHEET BERHASIL
-                // TIDAK ADA UNDUHAN OTOMATIS
-                
-            } catch (shareError) {
-                console.warn("Web Share API gagal atau dibatalkan oleh pengguna (Mobile):", shareError); 
-                // Jika share gagal/dibatalkan di mobile, informasikan, dan JANGAN UNDUH/BUKA WA
+        if (isMobileDevice) {
+            // --- JALUR KHUSUS UNTUK PERANGKAT MOBILE ---
+            console.log("Perangkat Mobile Terdeteksi.");
+            if (hasNavigatorShare && canSharePdfFile) {
+                // KONDISI MOBILE IDEAL: WEB SHARE API DIDUKUNG & BISA BERBAGI FILE PDF
+                try {
+                    console.log("Mobile: Kondisi Web Share API terpenuhi. Mencoba menggunakan Web Share API...");
+                    // Buka window kosong hanya jika diperlukan, tapi Web Share API tidak memerlukannya
+                    // Cukup langsung panggil navigator.share
+                    await navigator.share({
+                        files: [pdfFile],
+                        title: "Rapor Pertemuan",
+                        text: summaryText
+                    });
+                    console.log("Mobile: Web Share API berhasil dijalankan. Mengakhiri proses.");
+                    shareInstructionsEl.innerHTML = `Lembar berbagi telah muncul di perangkat Anda. Silakan pilih aplikasi WhatsApp (atau aplikasi lain) untuk membagikan rapor PDF.`;
+                    // Jika window kosong dibuka sebelumnya, tutup jika Web Share berhasil
+                    if (whatsappWindow && !whatsappWindow.closed) { whatsappWindow.close(); } 
+                    return; // SANGAT PENTING: Hentikan eksekusi di sini untuk mobile jika berhasil share
+                } catch (shareError) {
+                    // Mobile: Web Share API gagal (misal: dibatalkan pengguna, atau error lain)
+                    console.warn("Mobile: Web Share API gagal atau dibatalkan oleh pengguna:", shareError); 
+                    if (whatsappWindow && !whatsappWindow.closed) { whatsappWindow.close(); } // Tutup jendela kosong
+                    alert("Berbagi PDF langsung dibatalkan atau tidak tersedia di perangkat ini. Silakan coba cara lain atau gunakan desktop.");
+                    shareInstructionsEl.innerHTML = `Berbagi PDF langsung dibatalkan atau tidak tersedia di perangkat ini. Silakan coba cara lain atau gunakan desktop.`;
+                    return; // SANGAT PENTING: Hentikan eksekusi di sini untuk mobile jika gagal/dibatalkan share
+                }
+            } else {
+                // Mobile: Web Share API TIDAK DIDUKUNG untuk file PDF
+                console.log("Mobile: Web Share API untuk file PDF TIDAK didukung. Memberi info dan menghentikan.");
                 if (whatsappWindow && !whatsappWindow.closed) { whatsappWindow.close(); } // Tutup jendela kosong
-                alert("Berbagi PDF langsung dibatalkan atau tidak tersedia di perangkat ini. Silakan coba cara lain atau gunakan desktop.");
-                shareInstructionsEl.innerHTML = `Berbagi PDF langsung dibatalkan atau tidak tersedia di perangkat ini. Silakan coba cara lain atau gunakan desktop.`;
+                alert("Browser di perangkat seluler ini tidak mendukung berbagi PDF langsung. Anda bisa menggunakan versi desktop untuk mengunduh dan melampirkan PDF secara manual.");
+                shareInstructionsEl.innerHTML = `Browser di perangkat ini tidak mendukung berbagi PDF langsung. Anda bisa menggunakan desktop untuk mengunduh dan melampirkan PDF.`;
+                return; // SANGAT PENTING: Hentikan eksekusi di sini untuk mobile jika tidak didukung
             }
         } else {
-            // DESKTOP ATAU MOBILE TANPA DUKUNGAN / GAGAL WEB SHARE API (Jalur fallback untuk desktop)
-            console.log("Desktop atau Mobile tanpa dukungan Web Share API. Menggunakan fallback: Mengunduh PDF & Membuka WhatsApp.");
-            await downloadBlob(blob, pdfFileName); // Lakukan unduhan di desktop/mobile yang tidak support share API
+            // --- JALUR KHUSUS UNTUK PERANGKAT DESKTOP ---
+            console.log("Perangkat Desktop Terdeteksi.");
+            await downloadBlob(blob, pdfFileName); // Unduh PDF di desktop
             
-            // Perbarui instruksi UI untuk manual attachment
             shareInstructionsEl.innerHTML = `File PDF dengan nama "<b>${pdfFileName}</b>" telah diunduh ke perangkat Anda. Sebuah tab baru akan terbuka untuk WhatsApp. Anda perlu melampirkan file PDF tersebut secara manual di chat WhatsApp.`;
 
-            // Buka WhatsApp dengan pesan pra-isi (desktop atau mobile fallback)
+            // Buka WhatsApp dengan pesan pra-isi (desktop)
             const waTextForUrl = summaryText + '\n\nSilakan lampirkan PDF rapor yang baru diunduh.'; 
             const url = waUrlForDevice(waNumber, waTextForUrl);
 
+            // Buka window kosong yang sudah dibuat di awal
             if (whatsappWindow) {
               if (!whatsappWindow.closed) {
                 whatsappWindow.location.href = url;
               } else {
-                window.open(url, "_blank");
+                window.open(url, "_blank"); // Fallback jika sudah ditutup
               }
             } else {
-              window.open(url, "_blank");
+              window.open(url, "_blank"); // Fallback jika tidak bisa dibuka sama sekali di awal
             }
         }
 
@@ -1025,14 +1014,12 @@
         reader.onload = (e) => {
             try {
                 const loadedSettings = JSON.parse(e.target.result);
-                // Basic validation for loaded data structure
                 if (loadedSettings.lessonCategories && Array.isArray(loadedSettings.lessonCategories) && loadedSettings.checkedState && typeof loadedSettings.checkedState === 'object') {
                     lessonCategories = loadedSettings.lessonCategories;
                     saveLessonCategoriesToLocalStorage();
                     saveCheckedLessonsToLocalStorage(loadedSettings.checkedState);
 
                     populateCategoryDropdowns();
-                    // Ensure a category is selected before rendering subjects
                     const currentDisplayCategoryId = selectLessonCategoryDisplay.value || (lessonCategories.length > 0 ? lessonCategories[0].id : null);
                     if (currentDisplayCategoryId) {
                       renderSelectedCategorySubjects(currentDisplayCategoryId);
@@ -1046,7 +1033,7 @@
                 console.error("Gagal membaca atau mem-parse file pengaturan:", error);
                 alert("Gagal memuat pengaturan. Pastikan file JSON yang valid.");
             }
-            event.target.value = ''; // Reset input file agar bisa memilih file yang sama lagi
+            event.target.value = ''; 
         };
         reader.readAsText(file);
     });
@@ -1057,7 +1044,7 @@
             localStorage.removeItem(LOCAL_STORAGE_KEY_CHECKED_STATE);
             loadLessonCategoriesFromLocalStorage();
             populateCategoryDropdowns();
-            renderSelectedCategorySubjects(selectLessonCategoryDisplay.value); // Re-render with default category
+            renderSelectedCategorySubjects(selectLessonCategoryDisplay.value); 
             updatePreview();
             alert("Pengaturan telah direset ke default.");
         }
@@ -1070,7 +1057,6 @@
     async function loadAndRenderActivityLog() {
       activityLogContainer.innerHTML = "<div class='muted'>Memuat log aktivitas...</div>";
       try {
-        // Pastikan GOOGLE_APPS_SCRIPT_WEB_APP_URL sudah diganti dengan URL Web App Anda yang asli
         if (GOOGLE_APPS_SCRIPT_WEB_APP_URL === "YOUR_WEB_APP_URL_HERE") {
           throw new Error("URL Web App Google Apps Script belum diatur. Silakan ganti 'YOUR_WEB_APP_URL_HERE' dengan URL asli Anda.");
         }
@@ -1092,13 +1078,10 @@
             return;
           }
 
-          // Buat tabel untuk menampilkan log
           const table = document.createElement("table");
 
-          // Header tabel (sesuai urutan di Google Sheet)
           const thead = document.createElement("thead");
           const headerRow = document.createElement("tr");
-          // Gunakan header asli dari GAS, tapi bisa diatur ulang untuk tampilan
           const displayHeadersMap = {
             "Timestamp": "Timestamp",
             "CoachName": "Coach",
@@ -1108,29 +1091,25 @@
             "Aktivitas": "Aktivitas",
             "Hasil": "Hasil"
           };
-          
-          // Pastikan urutan dan nama header di tampilan sesuai keinginan Anda
           const orderedDisplayHeaders = ["Timestamp", "CoachName", "Pertemuan", "Tanggal", "Pelajaran", "Aktivitas", "Hasil"];
 
           orderedDisplayHeaders.forEach(key => {
             const th = document.createElement("th");
-            th.textContent = displayHeadersMap[key] || key; // Gunakan nama tampilan atau kunci asli
+            th.textContent = displayHeadersMap[key] || key; 
             headerRow.appendChild(th);
           });
           thead.appendChild(headerRow);
           table.appendChild(thead);
 
-          // Body tabel
           const tbody = document.createElement("tbody");
-          reports.reverse().forEach(report => { // Tampilkan yang terbaru di atas
+          reports.reverse().forEach(report => { 
             const tr = document.createElement("tr");
             orderedDisplayHeaders.forEach(key => {
               const td = document.createElement("td");
               let value = report[key];
               if (key === "Timestamp") {
-                value = value ? new Date(value).toLocaleString() : "-"; // Format timestamp agar lebih mudah dibaca
+                value = value ? new Date(value).toLocaleString() : "-"; 
               } else if (key === "Tanggal") {
-                // Tanggal dari GAS bisa berupa string YYYY-MM-DD atau objek Date
                 value = value ? (value instanceof Date ? value.toISOString().split('T')[0] : String(value)) : "-";
               }
               td.textContent = value || "-";
@@ -1140,7 +1119,7 @@
           });
           table.appendChild(tbody);
 
-          activityLogContainer.innerHTML = ""; // Bersihkan pesan loading
+          activityLogContainer.innerHTML = ""; 
           activityLogContainer.appendChild(table);
 
         } else {
@@ -1157,7 +1136,6 @@
 
     // Event listener untuk filter
     filterCoachNameInput.addEventListener("input", () => {
-      // Debounce filter agar tidak terlalu sering memuat ulang saat mengetik
       clearTimeout(filterCoachNameInput._timeout);
       filterCoachNameInput._timeout = setTimeout(loadAndRenderActivityLog, 300);
     });
@@ -1166,14 +1144,11 @@
     // Panggil fungsi muat dan render saat DOM siap
     document.addEventListener("DOMContentLoaded", () => {
       loadLessonCategoriesFromLocalStorage();
-      populateCategoryDropdowns(); // Isi kedua dropdown saat start
-      renderSelectedCategorySubjects(selectLessonCategoryDisplay.value); // Render kategori yang pertama terpilih
-      updatePreview(); // Perbarui preview awal
-      loadAndRenderActivityLog(); // Muat log aktivitas saat halaman dimuat
+      populateCategoryDropdowns(); 
+      renderSelectedCategorySubjects(selectLessonCategoryDisplay.value); 
+      updatePreview(); 
+      loadAndRenderActivityLog(); 
 
-      // Perbarui instruksi sesuai deteksi perangkat
-      // Ini hanya memperbarui teks instruksi, bukan logika generate PDF
-      // Logika generate PDF dan share API ada di handleGenerate()
       const testBlob = new Blob([], { type: 'application/pdf' }); 
       const supportsWebShareAPIForFiles = isMobile() && navigator.share && navigator.canShare && navigator.canShare({ files: [new File([testBlob], 'test.pdf', { type: 'application/pdf' })] });
 
