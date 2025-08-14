@@ -338,7 +338,7 @@
   <script>
     // URL Web App Google Apps Script Anda. GANTI DENGAN URL ASLI!
     // Contoh: https://script.google.com/macros/s/AKfycbz_XXXXXXXXXXXX_YOUR_ID/exec
-    const GOOGLE_APPS_SCRIPT_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbygP3jDKdZUw9xZvcmL6x4EqH-i3LAxM3iBY1EMPOJKLezBTRz7ikxeoGVwVc0fImHE2Q/exec"; 
+    const GOOGLE_APPS_SCRIPT_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwFlmXqTa4VzBGHtxqSihwES111-DvWE7nYf-RmqMdEL1eFBjuMSYxF1vdFNvfnupowNA/exec"; 
 
     // ======= Helper: tampilkan error lib kalau CDN gagal =======
     function showLibError(msg) {
@@ -1032,17 +1032,14 @@
 
           // Buat tabel untuk menampilkan log
           const table = document.createElement("table");
-          // Styling untuk tabel log sudah ada di <style> bagian atas
-          // table.style.width = "100%"; ...
 
           // Header tabel (sesuai urutan di Google Sheet)
           const thead = document.createElement("thead");
           const headerRow = document.createElement("tr");
           // Gunakan header asli dari GAS, tapi bisa diatur ulang untuk tampilan
-          const rawHeaders = Object.keys(reports[0]); // Ambil header dari objek pertama
           const displayHeadersMap = {
             "Timestamp": "Timestamp",
-            "CoachName": "Nama Coach",
+            "CoachName": "Coach",
             "Pertemuan": "Pertemuan",
             "Tanggal": "Tanggal",
             "Pelajaran": "Pelajaran",
