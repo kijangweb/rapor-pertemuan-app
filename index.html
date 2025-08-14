@@ -340,7 +340,7 @@
   <script>
     // URL Web App Google Apps Script Anda. GANTI DENGAN URL ASLI!
     // Contoh: https://script.google.com/macros/s/AKfycbz_XXXXXXXXXXXX_YOUR_ID/exec
-    const GOOGLE_APPS_SCRIPT_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwFlmXqTa4VzBGHtxqSihwES111-DvWE7nYf-RmqMdEL1eFBjuMSYxF1vdFNvfnupowNA/exec"; 
+    const GOOGLE_APPS_SCRIPT_WEB_APP_URL = "YOUR_WEB_APP_URL_HERE"; 
 
     // Elemen instruksi berbagi
     const shareInstructionsEl = document.getElementById("shareInstructions");
@@ -829,4 +829,362 @@
 
     async function handleGenerate() {
       const pertemuan = document.getElementById("pertemuan").value;
-  
+      const tanggal = document.getElementById("tanggal").value;
+      const aktivitas = document.getElementById("aktivitas").value;
+      const hasil = document.getElementById("hasil").value;
+      const pelajaran = getFormattedSelectedLessons();
+      const coachName = document.getElementById("coachName").value || "Unknown Coach"; // Ambil nama coach
+
+      const waNumberInput = document.getElementById("waNumber");
+      const waNumber = formatWhatsAppNumber(waNumberInput.value);
+      waNumberInput.value = waNumber;
+
+      if (!waNumber) {
+        alert("Masukkan nomor WhatsApp (format 628...)");
+        return;
+      }
+
+      // Data untuk dikirim ke Google Apps Script
+      const reportData = {
+        coachName: coachName,
+        pertemuan: pertemuan,
+        tanggal: tanggal,
+        pelajaran: pelajaran,
+        aktivitas: aktivitas,
+        hasil: hasil
+      };
+
+      const btn = document.getElementById("btnGenerate");
+      btn.disabled = true;
+      btn.textContent = "Menyimpan data & Membuat PDF...";
+
+      let whatsappWindow = null;
+      const pdfFileName = `rapor_pertemuan_${pertemuan || 'N'}_${tanggal || 'tanggal'}.pdf`;
+
+      try {
+        // 1. Buka jendela kosong untuk WhatsApp (strategi anti-popup blocker)
+        whatsappWindow = window.open("", "_blank");
+        if (whatsappWindow) {
+          whatsappWindow.document.write("Mohon tunggu, mempersiapkan PDF dan membuka WhatsApp...");
+          whatsappWindow.document.title = "Membuka WhatsApp...";
+        } else {
+          alert("Pop-up untuk WhatsApp diblokir. Harap izinkan pop-up atau buka WhatsApp secara manual.");
+        }
+
+        // 2. Kirim data ke Google Apps Script
+        console.log("Mengirim data rapor ke Google Apps Script:", reportData);
+        if (GOOGLE_APPS_SCRIPT_WEB_APP_URL === "YOUR_WEB_APP_URL_HERE") {
+          throw new Error("URL Web App Google Apps Script belum diatur. Silakan ganti 'YOUR_WEB_APP_URL_HERE' dengan URL asli Anda.");
+        }
+        const response = await fetch(GOOGLE_APPS_SCRIPT_WEB_APP_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded"
+          },
+          body: new URLSearchParams(reportData).toString()
+        });
+        const result = await response.json();
+        if (result.status === "success") {
+          console.log("Data berhasil disimpan di Google Sheet:", result.message);
+          await loadAndRenderActivityLog(); // Muat ulang log setelah data baru disimpan
+        } else {
+          console.error("Gagal menyimpan data ke Google Sheet:", result.message);
+          alert("Gagal menyimpan data ke log. Silakan coba lagi. Detail: " + result.message);
+          btn.disabled = false;
+          btn.textContent = "Generate PDF & Buka WhatsApp";
+          if (whatsappWindow && !whatsappWindow.closed) { whatsappWindow.close(); } 
+          return; // Hentikan proses jika penyimpanan gagal
+        }
+
+        // 3. Pastikan library PDF dimuat
+        await ensureLibraries();
+
+        // 4. Generate PDF Blob
+        const dataForPdf = { pertemuan, tanggal, pelajaran, aktivitas, hasil };
+        const blob = await generatePdfBlob(dataForPdf);
+
+        // 5. Tentukan Perilaku Berbagi / Unduh / Info berdasarkan Perangkat
+        const isMobileDevice = isMobile(); 
+        const pdfFile = new File([blob], pdfFileName, { type: 'application/pdf' });
+        const summaryText = `Rapor pertemuan ${pertemuan || "-"} (${tanggal || "-"})\n\nPelajaran: ${pelajaran || "-"}\nAktivitas: ${aktivitas || "-"}\nHasil: ${hasil || "-"}`; // Pesan utama WA
+        
+        console.log("--- Deteksi & Uji Web Share API (Di Perangkat Ini) ---");
+        console.log("isMobile():", isMobileDevice);
+        console.log("navigator.share tersedia:", !!navigator.share); 
+        
+        let canSharePdfFile = false; // Default ke false
+        if (!!navigator.share && navigator.canShare) { 
+            try {
+                canSharePdfFile = navigator.canShare({ files: [pdfFile] });
+            } catch (e) {
+                console.error("Error calling navigator.canShare with files:", e);
+                canSharePdfFile = false; 
+            }
+        }
+        console.log("navigator.canShare(file PDF) didukung:", canSharePdfFile);
+
+
+        if (isMobileDevice && !!navigator.share && canSharePdfFile) {
+            // PERANGKAT MOBILE & WEB SHARE API DIDUKUNG (Ini adalah jalur yang diinginkan untuk mobile)
+            try {
+                console.log("Mobile. Kondisi Web Share API terpenuhi. Mencoba menggunakan Web Share API...");
+                await navigator.share({
+                    files: [pdfFile],
+                    title: "Rapor Pertemuan",
+                    text: summaryText
+                });
+                console.log("Web Share API berhasil dijalankan.");
+                if (whatsappWindow && !whatsappWindow.closed) { whatsappWindow.close(); } // Tutup jendela kosong jika share sheet muncul
+                
+                // Perbarui instruksi UI
+                shareInstructionsEl.innerHTML = `Lembar berbagi telah muncul di perangkat Anda. Silakan pilih aplikasi WhatsApp (atau aplikasi lain) untuk membagikan rapor PDF.`;
+                // TIDAK ADA PEMBUKAAN URL WHATSAPP OTOMATIS JIKA SHARE SHEET BERHASIL
+                // TIDAK ADA UNDUHAN OTOMATIS
+                
+            } catch (shareError) {
+                console.warn("Web Share API gagal atau dibatalkan oleh pengguna (Mobile):", shareError); 
+                // Jika share gagal/dibatalkan di mobile, informasikan, dan JANGAN UNDUH/BUKA WA
+                if (whatsappWindow && !whatsappWindow.closed) { whatsappWindow.close(); } // Tutup jendela kosong
+                alert("Berbagi PDF langsung dibatalkan atau tidak tersedia di perangkat ini. Silakan coba cara lain atau gunakan desktop.");
+                shareInstructionsEl.innerHTML = `Berbagi PDF langsung dibatalkan atau tidak tersedia di perangkat ini. Silakan coba cara lain atau gunakan desktop.`;
+            }
+        } else {
+            // DESKTOP ATAU MOBILE TANPA DUKUNGAN / GAGAL WEB SHARE API (Jalur fallback untuk desktop)
+            console.log("Desktop atau Mobile tanpa dukungan Web Share API. Menggunakan fallback: Mengunduh PDF & Membuka WhatsApp.");
+            await downloadBlob(blob, pdfFileName); // Lakukan unduhan di desktop/mobile yang tidak support share API
+            
+            // Perbarui instruksi UI untuk manual attachment
+            shareInstructionsEl.innerHTML = `File PDF dengan nama "<b>${pdfFileName}</b>" telah diunduh ke perangkat Anda. Sebuah tab baru akan terbuka untuk WhatsApp. Anda perlu melampirkan file PDF tersebut secara manual di chat WhatsApp.`;
+
+            // Buka WhatsApp dengan pesan pra-isi (desktop atau mobile fallback)
+            const waTextForUrl = summaryText + '\n\nSilakan lampirkan PDF rapor yang baru diunduh.'; 
+            const url = waUrlForDevice(waNumber, waTextForUrl);
+
+            if (whatsappWindow) {
+              if (!whatsappWindow.closed) {
+                whatsappWindow.location.href = url;
+              } else {
+                window.open(url, "_blank");
+              }
+            } else {
+              window.open(url, "_blank");
+            }
+        }
+
+      } catch (err) {
+        console.error("Terjadi kesalahan fatal saat generate/kirim:", err);
+        if (whatsappWindow && !whatsappWindow.closed) {
+          try { whatsappWindow.close(); } catch (e) {}
+        }
+        alert("Terjadi kesalahan umum saat membuat rapor. Detail: " + (err && err.message ? err.message : err));
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Generate PDF & Buka WhatsApp";
+      }
+    }
+
+    document.getElementById("btnGenerate").addEventListener("click", handleGenerate);
+
+    ["pertemuan","tanggal","aktivitas","hasil"].forEach(id => {
+      const el = document.getElementById(id);
+      el.addEventListener("input", ()=> { setTimeout(updatePreview, 50); });
+    });
+
+    const waNumberInput = document.getElementById("waNumber");
+    waNumberInput.addEventListener("blur", () => {
+        waNumberInput.value = formatWhatsAppNumber(waNumberInput.value);
+    });
+
+    // ======= Fitur Export/Import/Reset Settings =======
+
+    document.getElementById("btnExportSettings").addEventListener("click", () => {
+        const settingsData = {
+            lessonCategories: lessonCategories,
+            checkedState: loadCheckedLessonsFromLocalStorage()
+        };
+        const filename = "rapor_settings.json";
+        const blob = new Blob([JSON.stringify(settingsData, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        alert("Pengaturan berhasil diekspor.");
+    });
+
+    document.getElementById("fileInputSettings").addEventListener("change", (event) => {
+        const file = event.target.files[0];
+        if (!file) {
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const loadedSettings = JSON.parse(e.target.result);
+                // Basic validation for loaded data structure
+                if (loadedSettings.lessonCategories && Array.isArray(loadedSettings.lessonCategories) && loadedSettings.checkedState && typeof loadedSettings.checkedState === 'object') {
+                    lessonCategories = loadedSettings.lessonCategories;
+                    saveLessonCategoriesToLocalStorage();
+                    saveCheckedLessonsToLocalStorage(loadedSettings.checkedState);
+
+                    populateCategoryDropdowns();
+                    // Ensure a category is selected before rendering subjects
+                    const currentDisplayCategoryId = selectLessonCategoryDisplay.value || (lessonCategories.length > 0 ? lessonCategories[0].id : null);
+                    if (currentDisplayCategoryId) {
+                      renderSelectedCategorySubjects(currentDisplayCategoryId);
+                    }
+                    updatePreview();
+                    alert("Pengaturan berhasil diimpor.");
+                } else {
+                    alert("Format file pengaturan tidak valid. Pastikan berisi 'lessonCategories' (array) dan 'checkedState' (objek).");
+                }
+            } catch (error) {
+                console.error("Gagal membaca atau mem-parse file pengaturan:", error);
+                alert("Gagal memuat pengaturan. Pastikan file JSON yang valid.");
+            }
+            event.target.value = ''; // Reset input file agar bisa memilih file yang sama lagi
+        };
+        reader.readAsText(file);
+    });
+
+    document.getElementById("btnClearSettings").addEventListener("click", () => {
+        if (confirm("Apakah Anda yakin ingin mereset semua pengaturan pelajaran ke default? Semua pelajaran kustom dan pilihan centang akan hilang.")) {
+            localStorage.removeItem(LOCAL_STORAGE_KEY_LESSON_CATEGORIES);
+            localStorage.removeItem(LOCAL_STORAGE_KEY_CHECKED_STATE);
+            loadLessonCategoriesFromLocalStorage();
+            populateCategoryDropdowns();
+            renderSelectedCategorySubjects(selectLessonCategoryDisplay.value); // Re-render with default category
+            updatePreview();
+            alert("Pengaturan telah direset ke default.");
+        }
+    });
+
+    // ======= Log Aktivitas Coach Functions =======
+    const activityLogContainer = document.getElementById("activityLogContainer");
+    const filterCoachNameInput = document.getElementById("filterCoachName");
+
+    async function loadAndRenderActivityLog() {
+      activityLogContainer.innerHTML = "<div class='muted'>Memuat log aktivitas...</div>";
+      try {
+        // Pastikan GOOGLE_APPS_SCRIPT_WEB_APP_URL sudah diganti dengan URL Web App Anda yang asli
+        if (GOOGLE_APPS_SCRIPT_WEB_APP_URL === "YOUR_WEB_APP_URL_HERE") {
+          throw new Error("URL Web App Google Apps Script belum diatur. Silakan ganti 'YOUR_WEB_APP_URL_HERE' dengan URL asli Anda.");
+        }
+        const response = await fetch(GOOGLE_APPS_SCRIPT_WEB_APP_URL, { method: "GET" });
+        const result = await response.json();
+
+        if (result.status === "success" && Array.isArray(result.data)) {
+          let reports = result.data;
+          const filterText = filterCoachNameInput.value.trim().toLowerCase();
+
+          if (filterText) {
+            reports = reports.filter(report =>
+              report.CoachName && String(report.CoachName).toLowerCase().includes(filterText)
+            );
+          }
+
+          if (reports.length === 0) {
+            activityLogContainer.innerHTML = "<div class='muted'>Tidak ada log aktivitas yang ditemukan.</div>";
+            return;
+          }
+
+          // Buat tabel untuk menampilkan log
+          const table = document.createElement("table");
+
+          // Header tabel (sesuai urutan di Google Sheet)
+          const thead = document.createElement("thead");
+          const headerRow = document.createElement("tr");
+          // Gunakan header asli dari GAS, tapi bisa diatur ulang untuk tampilan
+          const displayHeadersMap = {
+            "Timestamp": "Timestamp",
+            "CoachName": "Coach",
+            "Pertemuan": "Pertemuan",
+            "Tanggal": "Tanggal",
+            "Pelajaran": "Pelajaran",
+            "Aktivitas": "Aktivitas",
+            "Hasil": "Hasil"
+          };
+          
+          // Pastikan urutan dan nama header di tampilan sesuai keinginan Anda
+          const orderedDisplayHeaders = ["Timestamp", "CoachName", "Pertemuan", "Tanggal", "Pelajaran", "Aktivitas", "Hasil"];
+
+          orderedDisplayHeaders.forEach(key => {
+            const th = document.createElement("th");
+            th.textContent = displayHeadersMap[key] || key; // Gunakan nama tampilan atau kunci asli
+            headerRow.appendChild(th);
+          });
+          thead.appendChild(headerRow);
+          table.appendChild(thead);
+
+          // Body tabel
+          const tbody = document.createElement("tbody");
+          reports.reverse().forEach(report => { // Tampilkan yang terbaru di atas
+            const tr = document.createElement("tr");
+            orderedDisplayHeaders.forEach(key => {
+              const td = document.createElement("td");
+              let value = report[key];
+              if (key === "Timestamp") {
+                value = value ? new Date(value).toLocaleString() : "-"; // Format timestamp agar lebih mudah dibaca
+              } else if (key === "Tanggal") {
+                // Tanggal dari GAS bisa berupa string YYYY-MM-DD atau objek Date
+                value = value ? (value instanceof Date ? value.toISOString().split('T')[0] : String(value)) : "-";
+              }
+              td.textContent = value || "-";
+              tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+          });
+          table.appendChild(tbody);
+
+          activityLogContainer.innerHTML = ""; // Bersihkan pesan loading
+          activityLogContainer.appendChild(table);
+
+        } else {
+          activityLogContainer.innerHTML = `<div class='error'>Gagal memuat log: ${result.message || "Kesalahan tidak dikenal"}</div>`;
+        }
+      } catch (error) {
+        console.error("Kesalahan saat memuat log aktivitas:", error);
+        activityLogContainer.innerHTML = `<div class='error'>Terjadi kesalahan saat memuat log. Periksa konsol untuk detail. Pastikan URL Apps Script sudah benar dan ter-deploy sebagai Web App dengan akses 'Anyone'.</div>`;
+      }
+    }
+
+    // Event listener untuk tombol muat log
+    document.getElementById("btnLoadLog").addEventListener("click", loadAndRenderActivityLog);
+
+    // Event listener untuk filter
+    filterCoachNameInput.addEventListener("input", () => {
+      // Debounce filter agar tidak terlalu sering memuat ulang saat mengetik
+      clearTimeout(filterCoachNameInput._timeout);
+      filterCoachNameInput._timeout = setTimeout(loadAndRenderActivityLog, 300);
+    });
+
+
+    // Panggil fungsi muat dan render saat DOM siap
+    document.addEventListener("DOMContentLoaded", () => {
+      loadLessonCategoriesFromLocalStorage();
+      populateCategoryDropdowns(); // Isi kedua dropdown saat start
+      renderSelectedCategorySubjects(selectLessonCategoryDisplay.value); // Render kategori yang pertama terpilih
+      updatePreview(); // Perbarui preview awal
+      loadAndRenderActivityLog(); // Muat log aktivitas saat halaman dimuat
+
+      // Perbarui instruksi sesuai deteksi perangkat
+      // Ini hanya memperbarui teks instruksi, bukan logika generate PDF
+      // Logika generate PDF dan share API ada di handleGenerate()
+      const testBlob = new Blob([], { type: 'application/pdf' }); 
+      const supportsWebShareAPIForFiles = isMobile() && navigator.share && navigator.canShare && navigator.canShare({ files: [new File([testBlob], 'test.pdf', { type: 'application/pdf' })] });
+
+      if (supportsWebShareAPIForFiles) {
+        initialInstructionsEl.textContent = `Isi data pertemuan, pilih pelajaran (bisa tambah manual), aktivitas, dan hasil. PDF akan dibuat dan lembar berbagi akan muncul di perangkat Anda.`;
+        shareInstructionsEl.textContent = `Tekan "Generate PDF & Buka WhatsApp", lalu lembar berbagi akan muncul. Silakan pilih aplikasi WhatsApp (atau aplikasi lain) untuk membagikan rapor PDF.`;
+      } else {
+        initialInstructionsEl.textContent = `Isi data pertemuan, pilih pelajaran (bisa tambah manual), aktivitas, dan hasil. PDF akan dibuat lalu kamu bisa bagikan via WhatsApp (attach manual).`;
+        shareInstructionsEl.textContent = `File PDF akan diunduh ke perangkat Anda. Sebuah tab baru akan terbuka untuk WhatsApp. Anda perlu melampirkan file PDF tersebut secara manual di chat WhatsApp.`;
+      }
+    });
+  </script>
+</body>
+</html>
